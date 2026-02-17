@@ -1,8 +1,8 @@
-## The Messiness of Politics: Wrangling U.S. Presidential Election Data from 1976-2012
+# The Messiness of Politics: Wrangling U.S. Presidential Election Data from 1976-2012
 
 
 
-# Introduction & Problem Motivation: 
+## Introduction & Problem Motivation: 
 
 The United States has long been known for its strong political environment. With its roots deriving as the birthplace of democracy, America takes its political elections seriously and stands for representation for and by the people. As such, understanding election data is critical, especially when considering national presidential elections where the highest position of the government is at stake. Americans in particular are known to align themselves closely with their political party, with increased engagement and identification occurring during presidential election seasons. For example, a study conducted by the University of Stanford found that political partisanship acts as a stronger social divide compared to other identification factors such as race, ethnicity, and religion (Westwood et. al, 2017). Previous research also shows patterns of increased polarization and movement of political parties over the years (Pew Research Center, 2014). As such, this information remains highly relevant. Politicians, analysts, and political party donors can use prior election results data to predict future election outcomes, helping them to understand focus areas regarding resources and outreach efforts. Considering the personal investment from citizens, this knowledge can also be valuable for citizens to understand how to extend greater awareness of their respective political parties. Given this background, we were motivated to take the approach of working as a political data science team with the following key questions: (1) Which political parties have historically won presidential elections? (2) What has the breakdown of total votes been across different political parties in presidential elections? (3) Does the breakdown of total votes for political parties change by year and state? 
 
@@ -11,7 +11,7 @@ While we did not go into the project with a specific time frame in mind, we had 
 
 
 
-# Data Collection Process:
+## Data Collection Process:
 
 During the data collection phase, our team initially brainstormed a range of dataset ideas across various domains in an in-person session. We considered multiple topics where data wrangling could be meaningfully applied including the following five areas: (1) Travel (e.g., airline or tourism statistics); (2) Movies (e.g., film ratings or box office data); (3) Restaurants (e.g., customer reviews or restaurant health inspections); (4) Elections (e.g., voter turnout records or election results); and (4) College Rankings (e.g., university ranking metrics). For us, each of these areas were not only relevant to Americans, but also played key roles in shaping culture and society. With this in mind, we continued our asking phase by practically searching for datasets across these areas that would provide reasonable datasets to work with, thus helping us to narrow down our topic organically by the actual data available. Our goal was to find a dataset that was rich enough to require substantial cleaning and transformation, but not so pre-processed that there would not be enough for us to do. We documented promising datasets and project ideas, serving as our initial exploratory analysis. This collaborative brainstorming allowed us to weigh each option’s feasibility and potential insights, ensuring we chose a dataset well-suited for a comprehensive data wrangling project.
 
@@ -20,7 +20,7 @@ While we had discovered an interesting dataset looking at movie reviews, we ulti
 
 
 
-# Data Wrangling Process: 
+## Data Wrangling Process: 
 
 * Phase 1 – Data Loading and Initial Preparation: The entire data cleaning process was done in Visual Studio Code in a Quarto document. We imported the dataset ‘1976-2020-president’ into the quarto document using pandas, and an initial assessment of the loaded data was made(pandas: .describe()) (Table 3). The data initially had inconsistent datatypes, where columns such as year and number of votes were set as strings. The column names were also not entirely self-explanatory, and some columns were not relevant for the questions at hand (see ‘Introduction’) and for future analysis. Moreover, the data’s formatting was also inconsistent, with some columns being entirely capitalized while others contained special characters. Lastly, there were a significant number of missing values in some of the relevant columns that would later be required for the analysis.
 
@@ -42,7 +42,7 @@ For the sanity check, using the plotly library, we created an interactive chorop
 
 
 
-# Conclusions/Deliverables: 
+## Conclusions/Deliverables: 
 
 Based on the data, initial observations (Fig. 2, Fig. 3, and Fig. 4) confirm that our cleaning process worked, with the bar charts and the map achieved by the end of the pipeline reflecting the data breakdown properly. For example, Fig. 2 reflects the overall number of wins of the simplified political parties (i.e., either democrat, republican, or libertarian) across the twelve elections, showing democrat candidates winning the election eight times and republican candidates winning four times, which matches our dataset. Fig. 3 reflects a more specific breakdown by providing a delineation of total votes by each presidential election year from 1976-2020, showing how many votes each simplified party received. It appears that in some years one political party dominated, such as 1984 and 1996, while in other years there was a greater split across the parties for the number of votes, as seen in 2012 and 2020, for example. Moreover, we also saw that over the years, the trend of different states has also significantly changed, particularly across different regions, such as the West coast voting primarily Republican in the 1970s, but then shifting toward Democrat leaning by the 2000s with the reverse trend occurring in the South (Fig. 4). 
 
@@ -54,7 +54,7 @@ For future work, we believe it would be interesting to look at an even more deta
 
 
 
-# References 
+## References 
 
 MIT Election Data and Science Lab. (2017). U.S. President 1976–2020. Harvard Dataverse. 
 https://doi.org/10.7910/DVN/42MVDX. 
