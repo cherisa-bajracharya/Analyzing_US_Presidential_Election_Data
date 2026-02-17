@@ -1,0 +1,506 @@
+---
+title: "DataWrangling_FinalProject"
+format: html
+---
+
+# Import relevant packaged
+```{python}
+from __future__ import annotations
+import io
+import json
+from pathlib import Path
+
+import pandas as pd
+import matplotlib.pyplot as plt 
+from sklearn.preprocessing import LabelEncoder
+```
+
+
+# Import the csv 
+```{python}
+president = pd.read_csv("/Users/cherisa/Documents/ND/Fall/Data Wrangling/dataverse_files/1976-2020-president.csv")
+president
+```
+
+
+# Describe data
+```{python}
+president.describe()
+```
+
+
+# Checking for the missing values throughout the file.
+```{python}
+missing_values = president.isnull().sum()
+print("Missing values per column:")
+print(missing_values)
+```
+
+
+# Dropping irrelevant columns
+```{python}
+president = president.drop(columns=["notes", "version", "state_cen", "office", "state_ic"], errors="ignore") 
+def clean_columns(president: pd.president) -> pd.president:
+    president.columns = [col.strip().lower().replace(" ", "_") for col in president.columns]
+    return president
+president = clean_columns(president)
+```
+
+
+# Changing the names of columns 
+
+```{python}
+def rename_columns(president: pd.DataFrame) -> pd.DataFrame:
+  president = president.rename(columns={
+    "state_fips": "state_fips_code",
+    "state_po": "state_abbreviation",
+    "state_ic": "icc_code",
+    "candidatevotes": "candidate_votes",
+    "totalvotes": "total_votes",
+    "candidate": "candidate_name"
+  })
+  return president
+
+president = rename_columns(president)
+```
+
+
+# Changing the type of data
+
+- converted year, candidatevotes, and totalvotes from string to numerical
+- converted writein column to a boolean data type
+
+```{python}
+def fix_types(president: pd.DataFrame) -> pd.DataFrame:
+    president["year"] = pd.to_numeric(president["year"], errors="coerce").astype("Int64")
+    president["candidate_votes"] = pd.to_numeric(president["candidate_votes"], errors="coerce").astype("Int64")
+    president["total_votes"] = pd.to_numeric(president["total_votes"], errors="coerce").astype("Int64")
+    president["writein"] = president["writein"].astype(bool)
+    return president
+
+president = fix_types(president)
+```
+
+
+# Standardizing data
+
+for state, party_detailed, party_simplified, and candidate columns:
+- ensured that the column is treated as text.
+- removed any accidental leading or trailing whitespace
+- converted the text to title case, where the first letter of each word is capitalized
+
+```{python}
+def data_standardization(president: pd.DataFrame) -> pd.DataFrame:
+    president["state"] = president["state"].astype("string").str.strip().str.title()
+    president["party_detailed"] = president["party_detailed"].astype("string").str.strip().str.title()
+    president["party_simplified"] = president["party_simplified"].astype("string").str.strip().str.title()
+    president["candidate_name"] = president["candidate_name"].astype("string").str.strip().str.title()
+    return president
+
+president = data_standardization(president)
+```
+
+
+# Checking for duplicates.
+
+```{python}
+# Check for duplicate rows in the dataset
+duplicates = president.duplicated()
+num_duplicates = duplicates.sum()
+print(f"Number of duplicate rows: {num_duplicates}")
+```
+
+
+# Splitting the candidate name into first and last name
+
+```{python}
+import re
+
+def split_candidate_name(name: str) -> tuple[str, str]:
+  if pd.isna(name) or not isinstance(name, str):
+    return "", ""
+  # Check for "Last, First ..." format
+  if "," in name:
+    parts = name.split(",", 1)
+    last_name = parts[0].strip()
+    first_part = parts[1].strip()
+    first_name = first_part.split()[0] if first_part else ""
+  else:
+    parts = name.strip().split()
+    first_name = parts[0] if len(parts) > 0 else ""
+    last_name = parts[-1] if len(parts) > 1 else ""
+  first_name = re.sub(r'[^A-Za-z]', '', first_name)
+  last_name = re.sub(r'[^A-Za-z]', '', last_name)
+  return first_name, last_name
+
+# Create new columns
+president[["candidate_first_name", "candidate_last_name"]] = president["candidate_name"].apply(split_candidate_name).apply(pd.Series)
+
+# Move new columns to the front and drop original candidate_name
+cols = president.columns.tolist()
+for col in ["candidate_first_name", "candidate_last_name"]:
+  cols.insert(1, cols.pop(cols.index(col)))
+president = president[cols].drop(columns=["candidate_name"])
+```
+
+
+# Checking how many unique values there are in party_simplified
+
+```{python}
+num_unique = president["party_simplified"].nunique()
+unique_values = president["party_simplified"].unique()
+print(f"Number of unique values in 'party_simplified': {num_unique}")
+print("Unique values:")
+print(unique_values)
+```
+
+
+# Dropping the rows that have missing value in the column party_detailed.
+
+This was done so that the unique value "other" in party_simplified is not overrepresented by missing values that are taken as "other".
+
+```{python}
+def handle_missing(president: pd.DataFrame) -> pd.DataFrame: 
+  # Drop rows with missing values in all columns except 'notes'
+  cols_to_check = [col for col in president.columns if col != "notes"]
+  president = president.dropna(subset=cols_to_check, how="any")
+  return president
+
+president = handle_missing(president)
+```
+
+
+# Create derived columns
+
+1. Vote Percentage to normalizes the vote count and allows for easier comparison across states and years.
+
+```{python}
+def vote_percentage(president: pd.DataFrame) -> pd.DataFrame:
+    president["vote_percentage"] = ((president["candidate_votes"] / president["total_votes"]) * 100).round(2)
+    return president
+
+president = vote_percentage(president)
+```
+
+2. Margin of Victory to understand how competitive the election was in that state
+```{python}
+def margin_of_victory(group):
+  top_votes = group.nlargest(2, "candidate_votes")["candidate_votes"].values
+  return top_votes[0] - top_votes[1] if len(top_votes) == 2 else None
+
+# Compute margin of victory for each (year, state) group
+margin_series = president.groupby(["year", "state"]).apply(margin_of_victory)
+
+# Create the column and assign values using the group keys
+president["margin_of_victory"] = president.set_index(["year", "state"]).index.map(margin_series)
+```
+
+# Pivot
+
+1. Detailed Pivot Table
+
+```{python}
+election_summary = pd.pivot_table(
+  president,
+  index="year",
+  columns="party_simplified",
+  values=["total_votes", "vote_percentage"],
+  aggfunc={"total_votes": "sum", "vote_percentage": "mean"}
+)
+# Round vote_percentage to 2 decimal places
+election_summary["vote_percentage"] = election_summary["vote_percentage"].round(2)
+election_summary
+```
+
+1.1. Sanity check with Visualization - Bar Chart
+
+```{python}
+import matplotlib.pyplot as plt
+
+# Prepare data for grouped bar chart
+parties = [p for p in ['Democrat', 'Republican'] if p in election_summary['vote_percentage'].columns]
+other_parties = [p for p in election_summary['vote_percentage'].columns if p not in parties]
+parties += other_parties  # Democratic, Republican, then others
+
+years = election_summary.index.tolist()
+bar_width = 0.2
+x = range(len(years))
+
+# Assign colors: blue for Democratic, red for Republican, others as grey
+party_colors = {
+  'Democrat': 'blue',
+  'Republican': 'red',
+  'Libertarian': 'green'
+}
+colors = [party_colors.get(party, 'grey') for party in parties]
+
+fig, ax = plt.subplots(figsize=(14, 7))
+
+for i, (party, color) in enumerate(zip(parties, colors)):
+  ax.bar(
+    [xi + i * bar_width for xi in x],
+    election_summary['vote_percentage'][party],
+    width=bar_width,
+    label=party,
+    color=color,
+    alpha=0.8
+  )
+
+ax.set_xticks([xi + bar_width for xi in x])
+ax.set_xticklabels(years, rotation=45)
+ax.set_title('Votes Percentage by Party for Each Year')
+ax.set_xlabel('Year')
+ax.set_ylabel('Votes Percentage')
+ax.legend()
+plt.tight_layout()
+plt.show()
+```
+
+1.2. Sanity check with Visualization - Line Chart
+
+```{python}
+# Prepare data for line chart
+parties = [p for p in ['Democrat', 'Republican'] if p in election_summary['vote_percentage'].columns]
+other_parties = [p for p in election_summary['vote_percentage'].columns if p not in parties]
+parties += other_parties  # Democratic, Republican, then others
+
+years = election_summary.index.tolist()
+
+fig, ax = plt.subplots(figsize=(14, 7))
+
+party_colors = {
+  'Democrat': 'blue',
+  'Republican': 'red',
+  'Libertarian': 'green'
+}
+
+for party in parties:
+  color = party_colors.get(party, 'grey')
+  ax.plot(
+    years,
+    election_summary['vote_percentage'][party],
+    marker='o',
+    label=party,
+    color=color
+  )
+
+ax.set_title('Votes Percentage by Party for Each Year')
+ax.set_xlabel('Year')
+ax.set_ylabel('Votes Percentage')
+ax.legend()
+plt.xticks(rotation=45)
+plt.tight_layout()
+plt.show()
+```
+
+2. Simplified Pivot Table
+
+```{python}
+# Find the winning party for each year
+winner_df = president.loc[president.groupby("year")["candidate_votes"].idxmax()][["year", "party_detailed", "candidate_votes", "vote_percentage"]]
+
+# Pivot table: year as index, party as columns, values are candidate_votes and vote_percentage
+winner_pivot = winner_df.pivot_table(
+  index="year",
+  columns="party_detailed",
+  values=["candidate_votes", "vote_percentage"],
+  aggfunc="first"
+)
+
+winner_df[["year", "party_detailed", "candidate_votes", "vote_percentage"]]
+```
+
+
+```{python}
+# Create a bar chart showing winning party for each election year with thinner bars and specific colors for Democrat and Republican
+plt.figure(figsize=(12, 6))
+winner_counts = winner_df['party_detailed'].value_counts()
+
+party_colors = {
+  'Democrat': 'blue',
+  'Republican': 'red'
+}
+
+# Map colors for each party, default to grey if not in party_colors
+colors = [party_colors.get(party, 'grey') for party in winner_counts.index]
+
+plt.bar(winner_counts.index, winner_counts.values, color=colors, width=0.3)
+plt.title('Number of Presidential Election Wins by Party')
+plt.xlabel('Party')
+plt.ylabel('Number of Wins')
+plt.xticks(rotation=45)
+plt.tight_layout()
+plt.show()
+```
+
+
+3. Pivot Table - State Wins in 1976
+
+```{python}
+# Find the winning party for each (year, state) and filter for year 1976
+state_winners = president.loc[president.groupby(["year", "state"])["candidate_votes"].idxmax()][["year", "state", "party_detailed","vote_percentage"]]
+state_winners_1976 = state_winners[state_winners["year"] == 1976]
+
+# Pivot table: index by year and state, columns are party_detailed, values are candidate_votes and total_votes
+state_win_pivot_1976 = state_winners_1976.pivot_table(
+  index=["year", "state"],
+  values=["party_detailed","vote_percentage"],
+
+  aggfunc="first"
+)
+
+state_win_pivot_1976
+```
+
+```{python}
+import plotly.express as px
+
+# Prepare data for choropleth: need state abbreviation and party
+if 'state_abbreviation' in state_winners_1976.columns:
+  state_winners_1976 = state_winners_1976.drop(columns=['state_abbreviation'])
+
+state_winners_1976 = state_winners_1976.merge(
+  president[["state", "state_abbreviation"]].drop_duplicates(),
+  on="state",
+  how="left"
+)
+
+party_colors = {'Democrat': 0, 'Republican': 1, 'Other': 0.5}
+state_winners_1976['party_numeric'] = state_winners_1976['party_detailed'].map(
+  lambda x: party_colors.get(x, 0.5)
+)
+
+fig = px.choropleth(
+  state_winners_1976,
+  locations='state_abbreviation',
+  color='party_numeric',
+  locationmode='USA-states',
+  scope='usa',
+  title='Presidential Election Winner by State - 1976',
+  hover_name='state_abbreviation',
+  hover_data={
+  'party_detailed': True,
+  'vote_percentage': True,
+  'party_numeric': False  # Explicitly remove party_numeric from hover
+  },
+  color_continuous_scale=[
+  [0, 'rgba(0,0,255,0.5)'],
+  [0.5, 'rgba(128,0,128,0.5)'],
+  [1, 'rgba(255,0,0,0.5)']
+  ],
+  labels={'party_numeric': 'Party'}
+)
+fig.update_traces(
+  hovertemplate=(
+  'State: %{customdata[0]}<br>'
+  'State Abbreviation: %{customdata[1]}<br>'
+  'Winning Party: %{customdata[2]}<br>'
+  'Vote Percentage: %{customdata[3]:.2f}%<extra></extra>'
+  ),
+  customdata=state_winners_1976[["state", "state_abbreviation", "party_detailed", 'vote_percentage']].values
+)
+
+fig.update_layout(
+  coloraxis_showscale=False,
+  geo=dict(showframe=False, showcoastlines=True)
+)
+
+fig.show()
+```
+
+4. Interactive Pivot Table - State Wins by Year
+
+```{python}
+import ipywidgets as widgets
+from IPython.display import display
+
+# Prepare the state_winners DataFrame for all years
+state_winners = president.loc[
+  president.groupby(["year", "state"])["candidate_votes"].idxmax()
+][["year", "state", "party_detailed", "vote_percentage"]]
+
+# Create a dropdown widget for year selection
+year_options = sorted(state_winners["year"].unique())
+year_dropdown = widgets.Dropdown(
+  options=year_options,
+  value=year_options[0],
+  description='Year:',
+  style={'description_width': 'initial'}
+)
+
+# Function to update and display the pivot table based on selected year
+def update_pivot(year):
+  filtered = state_winners[state_winners["year"] == year]
+  pivot = filtered.pivot_table(
+    index=["state"],
+    values=["party_detailed", "vote_percentage"],
+    aggfunc="first"
+  )
+  display(pivot)
+
+# Use interactive widget to update table
+widgets.interactive(update_pivot, year=year_dropdown)
+```
+
+```{python}
+import plotly.express as px
+import ipywidgets as widgets
+from IPython.display import display
+
+# Prepare state_winners DataFrame for all years
+state_winners = president.loc[
+  president.groupby(["year", "state"])["candidate_votes"].idxmax()
+][["year", "state", "party_detailed", "vote_percentage"]]
+
+# Merge with state abbreviation
+state_winners = state_winners.merge(
+  president[["state", "state_abbreviation"]].drop_duplicates(),
+  on="state",
+  how="left"
+)
+
+# Map party names to numeric values for coloring
+party_colors = {'Democrat': 0, 'Republican': 1, 'Other': 0.5}
+state_winners['party_numeric'] = state_winners['party_detailed'].map(
+  lambda x: party_colors.get(x, 0.5)
+)
+
+# Interactive choropleth function with custom hover (party_numeric not shown)
+def plot_choropleth(year):
+  df = state_winners[state_winners["year"] == year]
+  fig = px.choropleth(
+    df,
+    locations='state_abbreviation',
+    color='party_numeric',
+    locationmode='USA-states',
+    scope='usa',
+    title=f'Presidential Election Winner by State - {year}',
+    hover_name='state_abbreviation',
+    hover_data={
+      'state_abbreviation': False,
+      'party_detailed': True,
+      'vote_percentage': True,
+      'party_numeric': False  # Explicitly hide party_numeric
+    },
+    color_continuous_scale=[
+      [0, 'rgba(0,0,255,0.5)'],
+      [0.5, 'rgba(128,0,128,0.5)'],
+      [1, 'rgba(255,0,0,0.5)']
+    ]
+  )
+  # Add custom hovertemplate
+  fig.update_traces(
+    hovertemplate=(
+      'State: %{customdata[0]}<br>'
+      'State Abbreviation: %{customdata[1]}<br>'
+      'Winning Party: %{customdata[2]}<br>'
+      'Vote Percentage: %{customdata[3]:.2f}%<extra></extra>'
+    ),
+    customdata=df[["state", "state_abbreviation", "party_detailed", 'vote_percentage']].values
+  )
+  fig.update_layout(coloraxis_showscale=False, geo=dict(showframe=False, showcoastlines=True))
+  fig.show()
+
+year_options = sorted(state_winners["year"].unique())
+widgets.interactive(plot_choropleth, year=widgets.Dropdown(options=year_options, value=year_options[0], description='Year:'))
+```
